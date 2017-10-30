@@ -4,6 +4,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
 CMAKE_POLICY(SET CMP0003 NEW)
 CMAKE_POLICY(SET CMP0054 NEW)
+CMAKE_POLICY(SET CMP0066 NEW)
 
 # Get all propreties that cmake supports
 execute_process(COMMAND cmake --help-property-list OUTPUT_VARIABLE CMAKE_PROPERTY_LIST)
@@ -130,8 +131,4 @@ endif (WIN32)
 set_target_properties( Greis PROPERTIES IMPORTED_LOCATION ${pathGreis} )
 add_dependencies( Greis libGreis )
 
-add_subdirectory(jps2db)
-add_subdirectory(db2jps)
-add_subdirectory(jps2jps)
-add_subdirectory(jpsdump)
-
+add_subdirectory(gnssrcvbroker)

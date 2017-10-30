@@ -2,14 +2,15 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
 # variables declaration
 
-SET(PROJECT jps2jps)
+SET(PROJECT gnssrcvbroker)
 
 SET(DEPENDS_ON_PROJECTS Greis Common)
 
+SET(CMAKE_AUTOMOC ON)
 
 FILE(GLOB_RECURSE HEADERS "include/*.h")
 
-FILE(GLOB_RECURSE SOURCES "src/*.cpp")
+FILE(GLOB_RECURSE SOURCES "src/*.c*")
 
 FILE(GLOB_RECURSE MOC_SOURCES "*_automoc.cpp")
 
@@ -42,6 +43,7 @@ target_link_libraries(
     ${DEPENDS_ON_PROJECTS}
     ${Boost_LIBRARIES}
     Qt5::Core
+    Qt5SerialPort
     Qt5::Sql)
 
 # dependencies

@@ -1,23 +1,35 @@
 #include <QtCore/QtCore>
+#include <QtCore/QReadWriteLock>
+#include <QtCore/QDir>
 #include "Common/Logger.h"
 #include "Common/SmartPtr.h"
 #include "Common/Path.h"
 #include "Common/Connection.h"
 #include "Greis/DataChunk.h"
-#include "Greis/SerialPortBinaryStream.h"
-#include "Platform/SerialStreamReader.h"
-#include "Platform/ServiceManager.h"
-#include "Platform/ChainedSink.h"
+#include "SerialPortBinaryStream.h"
+#include "SerialStreamReader.h"
+#include "ChainedSink.h"
 #include "Greis/LoggingBinaryStream.h"
 #include "Greis/FileBinaryStream.h"
 #include "webapi.h"
+#include "Greis/SkyPeek.h"
+#include "Greis/StdMessage/FileIdStdMessage.h"
+#include "Greis/StdMessage/MsgFmtStdMessage.h"
+#include "Greis/StdMessage/ParamsStdMessage.h"
+#include "Greis/StdMessage/SatIndexStdMessage.h"
+#include "Greis/StdMessage/SatNumbersStdMessage.h"
+#include "Greis/StdMessage/RcvDateStdMessage.h"
+#include "Greis/ChecksumComputer.h"
 
 using namespace Common;
 using namespace Greis;
 using namespace Platform;
 
-namespace jpslogd
+namespace gnssrcvbroker
 {
+
+    QReadWriteLock skyPeekLock;
+    std::unique_ptr<SkyPeek> skyPeek;
 
 	bool mainLoop(QHash<QString,QVariant> C)
     {
@@ -52,24 +64,42 @@ namespace jpslogd
             sLogger.Debug(QString("minBufferSize=%1").arg(minBufferSize));
             sLogger.Debug(QString("maxBufferSize=%1").arg(maxBufferSize));
 
-            SerialPortBinaryStream::SharedPtr_t deviceBinaryStream;
+            Platform::SerialPortBinaryStream::SharedPtr_t deviceBinaryStream;
 
             bool success = false;
 
             sLogger.Trace("Progress: Opening port");
 
-            deviceBinaryStream = std::make_shared<SerialPortBinaryStream>(
+            deviceBinaryStream = std::make_shared<Platform::SerialPortBinaryStream>(
                 serialPortName, serialPortBaudRate, serialPortFlowControl, 
                 minBufferSize, maxBufferSize);     
 
             sLogger.Trace("State: Stopping current monitoring (if any)...");
-            deviceBinaryStream->writeBytes("\r\ndm\n\r");
+            deviceBinaryStream->write("\n\rdm\n\r");
             sLogger.Trace("State: Purging buffers...");
             deviceBinaryStream->purgeBuffers();
             
             GreisMessageStream::SharedPtr_t messageStream;
+
+            QDir fileTree;
+            bool fileTreeMode = false;
+
             if (!C["enableFile"].toBool())
             {
+                messageStream = std::make_shared<GreisMessageStream>(deviceBinaryStream, true, false);
+            } else if ((C["greisLogFileName"].toString()).endsWith(QDir::separator()))
+            {
+                fileTree = QDir(C["greisLogFileName"].toString());
+                QFile file(fileTree.filePath("writetest"));
+                if (!file.open(QIODevice::ReadWrite))
+                {
+                    sLogger.Error(QString("Directory %1 is not writable. File storage disabled.").arg(fileTree.path()));
+                    C["enableFile"] = false;
+                } else {
+                    file.remove();
+                    fileTreeMode = true;
+                    sLogger.Debug("fileTreeMode=true");
+                }
                 messageStream = std::make_shared<GreisMessageStream>(deviceBinaryStream, true, false);
             }
             else
@@ -78,6 +108,7 @@ namespace jpslogd
                 QString fileName = QString("%1Z.%2").arg(now.toString("yyyy-MM-dd_HH_mm_ss_zzz")).arg(C["greisLogFileName"].toString());
                 auto proxyStream = std::make_shared<LoggingBinaryStream>(deviceBinaryStream, std::make_shared<FileBinaryStream>(fileName, Create));
                 messageStream = std::make_shared<GreisMessageStream>(proxyStream, true, false);
+                sLogger.Debug("fileTreeMode=false");
             }
 
             sLogger.Trace("State: Configuring receiver");
@@ -91,6 +122,19 @@ namespace jpslogd
 
             std::unique_ptr<DataChunk> dataChunk;
             dataChunk = make_unique<DataChunk>();
+            skyPeek = make_unique<SkyPeek>();
+            gnssrcvbroker::Webapi::skyPeek = gnssrcvbroker::skyPeek.get();
+
+            auto target = make_unique<DataChunk>();
+            
+            const int FileIdStdMessageFixedSize = 90;
+            const int MsgFmtStdMessageFixedSize = 14;
+
+            auto fileId = make_unique<Greis::FileIdStdMessage>(QString("JP055RLOGF JPS OMNICOLLECT Receiver Log File").leftJustified(FileIdStdMessageFixedSize,' ').toLatin1().constData(),FileIdStdMessageFixedSize);
+            auto msgFmt = make_unique<Greis::MsgFmtStdMessage>("MF009JP010109F", MsgFmtStdMessageFixedSize);
+            QByteArray bMsgPMVer = QString("PM024rcv/ver/main=\"3.4.1 Mar,13,2012\",@").toLatin1().constData();
+            bMsgPMVer.append(QString("%1").arg(Greis::ChecksumComputer::ComputeCs8(bMsgPMVer,bMsgPMVer.size()), 2, 16, QChar('0')).toUpper().toLatin1().constData());
+            auto msgPMVer = make_unique<Greis::ParamsStdMessage>(bMsgPMVer,bMsgPMVer.size());
 
             sLogger.Trace("State: Acquisition is about to begin");
             int msgCounter = 0;
@@ -99,9 +143,24 @@ namespace jpslogd
             while ((msg = messageStream->Next()).get())
             {
                 msgCounter++;
-                //auto stdMsg = static_cast<Greis::StdMessage*>(msg.get());
-                //sLogger.Debug(QString("Message %1: %2").arg(msg->Id().c_str()).arg(msg->Size()));
-                dataChunk->AddMessage(std::move(msg));
+                if (msg->Kind() == EMessageKind::StdMessage)
+                {
+                    auto stdMsg = static_cast<Greis::StdMessage*>(msg.get());
+                    sLogger.Debug(QString("Message %1: %2").arg(stdMsg->Id().c_str()).arg(stdMsg->Size()));
+                } else {
+                    sLogger.Debug(QString("Message nonStdMessage"));
+                }
+
+                if(fileTreeMode){
+                    //
+                }
+
+                if(C["enableParse"].toBool()){
+                    skyPeekLock.lockForWrite();
+                    skyPeek->AddMessage(msg.get());
+                    skyPeekLock.unlock();
+                    }
+                
                 if (msgCounter % 100 == 0)
                 {
                     sLogger.Trace(QString("Progress: %1 messages received").arg(msgCounter));
@@ -132,7 +191,7 @@ namespace jpslogd
         		int LogLevel = 3;
         		sLogger.Initialize(LogLevel);
 
-        		sLogger.Info("JPSUtils\\JPSLogd acquisition component");
+        		sLogger.Info("omnicollect\\gnssrcvbroker acquisition component");
         		sLogger.Info("Schmidt Institute of Physics of the Earth RAS");
         		sLogger.Info("PROVIDED AS IS, NO WARRANTY, FOR SCIENTIFIC USE");
 
@@ -240,7 +299,7 @@ namespace jpslogd
 
         		sLogger.Initialize(C["LogLevel"].toInt());
 
-        		sLogger.Debug("enableParse="+QString::number(C["enableParse"].toBool()));
+        		sLogger.Debug("enableParse="+QString::number(C["enableParse"].toBool())); 
         		sLogger.Debug("enableFile="+C["enableFile"].toString());
         		sLogger.Debug("enableDB="+QString::number(C["enableDB"].toBool()));
         		sLogger.Debug("enableWebAPI="+QString::number(C["enableWebAPI"].toBool()));
@@ -249,13 +308,14 @@ namespace jpslogd
                 // WebAPI
                 if(C["enableWebAPI"].toBool())
                 {
-                    jpslogd::Webapi webapi;
-                    webapi.start();
+                    gnssrcvbroker::Webapi * webapi = new gnssrcvbroker::Webapi();
+                    gnssrcvbroker::Webapi::skyPeekLock = &gnssrcvbroker::skyPeekLock;
+                    webapi->start();
                 }
 
                 // Start Ringbuffer retention here
 
-                jpslogd::mainLoop(C);
+                gnssrcvbroker::mainLoop(C);
 
     }
     catch (Exception& e)
