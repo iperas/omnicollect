@@ -1,25 +1,25 @@
 #include <QtCore/QtCore>
 #include <QtCore/QReadWriteLock>
 #include <QtCore/QDir>
-#include "Common/Logger.h"
-#include "Common/SmartPtr.h"
-#include "Common/Path.h"
-#include "Common/Connection.h"
-#include "Greis/DataChunk.h"
+#include "common/Logger.h"
+#include "common/SmartPtr.h"
+#include "common/Path.h"
+#include "common/Connection.h"
+#include "greis/DataChunk.h"
 #include "SerialPortBinaryStream.h"
 #include "SerialStreamReader.h"
 #include "ChainedSink.h"
-#include "Greis/LoggingBinaryStream.h"
-#include "Greis/FileBinaryStream.h"
+#include "greis/LoggingBinaryStream.h"
+#include "greis/FileBinaryStream.h"
 #include "webapi.h"
-#include "Greis/SkyPeek.h"
-#include "Greis/StdMessage/FileIdStdMessage.h"
-#include "Greis/StdMessage/MsgFmtStdMessage.h"
-#include "Greis/StdMessage/ParamsStdMessage.h"
-#include "Greis/StdMessage/SatIndexStdMessage.h"
-#include "Greis/StdMessage/SatNumbersStdMessage.h"
-#include "Greis/StdMessage/RcvDateStdMessage.h"
-#include "Greis/ChecksumComputer.h"
+#include "extras/SkyPeek.h"
+#include "greis/StdMessage/FileIdStdMessage.h"
+#include "greis/StdMessage/MsgFmtStdMessage.h"
+#include "greis/StdMessage/ParamsStdMessage.h"
+#include "greis/StdMessage/SatIndexStdMessage.h"
+#include "greis/StdMessage/SatNumbersStdMessage.h"
+#include "greis/StdMessage/RcvDateStdMessage.h"
+#include "greis/ChecksumComputer.h"
 
 using namespace Common;
 using namespace Greis;
@@ -30,6 +30,12 @@ namespace gnssrcvbroker
 
     QReadWriteLock skyPeekLock;
     std::unique_ptr<SkyPeek> skyPeek;
+    
+    void writeCRLF( QFile * file)
+    {
+        file->write(NonStdTextMessage::CreateCarriageReturnMessage()->ToByteArray());
+        file->write(NonStdTextMessage::CreateNewLineMessage()->ToByteArray());
+    }
 
 	bool mainLoop(QHash<QString,QVariant> C)
     {
@@ -76,7 +82,10 @@ namespace gnssrcvbroker
 
             sLogger.Trace("State: Stopping current monitoring (if any)...");
             deviceBinaryStream->write("\n\rdm\n\r");
-            sLogger.Trace("State: Purging buffers...");
+            deviceBinaryStream->write("\r\ndm\r\n");
+            deviceBinaryStream->write("\n\rdm\r");
+            deviceBinaryStream->write("\r\ndm\n");
+            deviceBinaryStream->purgeBuffers();
             deviceBinaryStream->purgeBuffers();
             
             GreisMessageStream::SharedPtr_t messageStream;
@@ -98,6 +107,7 @@ namespace gnssrcvbroker
                 } else {
                     file.remove();
                     fileTreeMode = true;
+                    C["enableParse"] = true;
                     sLogger.Debug("fileTreeMode=true");
                 }
                 messageStream = std::make_shared<GreisMessageStream>(deviceBinaryStream, true, false);
@@ -112,6 +122,7 @@ namespace gnssrcvbroker
             }
 
             sLogger.Trace("State: Configuring receiver");
+            deviceBinaryStream->purgeBuffers();
             for (auto cmd : commands)
             {
                 sLogger.Debug(QString("Progress: Running command: %1").arg(cmd));
@@ -130,16 +141,15 @@ namespace gnssrcvbroker
             const int FileIdStdMessageFixedSize = 90;
             const int MsgFmtStdMessageFixedSize = 14;
 
-            auto fileId = make_unique<Greis::FileIdStdMessage>(QString("JP055RLOGF JPS OMNICOLLECT Receiver Log File").leftJustified(FileIdStdMessageFixedSize,' ').toLatin1().constData(),FileIdStdMessageFixedSize);
-            auto msgFmt = make_unique<Greis::MsgFmtStdMessage>("MF009JP010109F", MsgFmtStdMessageFixedSize);
-            QByteArray bMsgPMVer = QString("PM024rcv/ver/main=\"3.4.1 Mar,13,2012\",@").toLatin1().constData();
-            bMsgPMVer.append(QString("%1").arg(Greis::ChecksumComputer::ComputeCs8(bMsgPMVer,bMsgPMVer.size()), 2, 16, QChar('0')).toUpper().toLatin1().constData());
-            auto msgPMVer = make_unique<Greis::ParamsStdMessage>(bMsgPMVer,bMsgPMVer.size());
-
             sLogger.Trace("State: Acquisition is about to begin");
             int msgCounter = 0;
             Message::UniquePtr_t msg;
             Epoch * lastFinishedEpoch;
+            QFile * fileTreefile;
+            QByteArray baFileTreeInitial;
+            Greis::FileIdStdMessage::UniquePtr_t fileId; 
+            Greis::MsgFmtStdMessage::UniquePtr_t msgFmt; 
+            Greis::ParamsStdMessage::UniquePtr_t msgPMVer;
             while ((msg = messageStream->Next()).get())
             {
                 msgCounter++;
@@ -147,27 +157,85 @@ namespace gnssrcvbroker
                 {
                     auto stdMsg = static_cast<Greis::StdMessage*>(msg.get());
                     sLogger.Debug(QString("Message %1: %2").arg(stdMsg->Id().c_str()).arg(stdMsg->Size()));
-                } else {
-                    sLogger.Debug(QString("Message nonStdMessage"));
-                }
-
-                if(fileTreeMode){
-                    //
-                }
-
                 if(C["enableParse"].toBool()){
                     skyPeekLock.lockForWrite();
+                    auto id = static_cast<Greis::StdMessage*>(msg.get())->Id();
+                    if(id=="JP"){
+                        sLogger.Trace(QString("Found stream header [JP]"));
+                        fileId = make_unique<Greis::FileIdStdMessage>(msg->ToByteArray(),msg->Size());
+                        
+                        }
+                    if(id=="MF"){
+                        sLogger.Trace(QString("Found message format [MF]"));
+                        msgFmt= make_unique<Greis::MsgFmtStdMessage>(msg->ToByteArray(),msg->Size());
+                        
+                        }
+                    if(id=="PM"){
+                        auto paramMsg = dynamic_cast<ParamsStdMessage*>(msg.get());
+                        if(QString::fromStdString(paramMsg->Params()).contains(QString("rcv/ver/main"))){
+                            sLogger.Trace(QString("Found firmware version info [PM]"));
+                            msgPMVer= make_unique<Greis::ParamsStdMessage>(msg->ToByteArray(),msg->Size());
+                            
+                            }
+                        }
                     skyPeek->AddMessage(msg.get());
                     skyPeekLock.unlock();
                     }
-                
+                } else {
+                    sLogger.Debug(QString("Message nonStdMessage"));
+                }
+                if(fileTreeMode){
+                    
+                    if(skyPeek->DateTime.isValid()){
+                    QString path = C["greisLogFileName"].toString()+QString::number(skyPeek->DateTime.date().year())+QDir::separator()+QString::number(skyPeek->DateTime.date().dayOfYear());
+                    QDir dirTree(path);
+                    if (!dirTree.exists() && !dirTree.mkpath(path)) {
+                        sLogger.Error(QString("Cannot create path %1").arg(path));
+                        sLogger.Trace("State: Stopping current monitoring (if any)...");
+                        deviceBinaryStream->write("\n\rdm\n\r");
+                        sLogger.Trace("State: Purging buffers...");
+                        deviceBinaryStream->purgeBuffers();
+                        throw 73;
+                    }
+                    int fileNumber = C["greisLogMinuteDenominator"].toInt() * floor((skyPeek->DateTime.time().hour()*60+skyPeek->DateTime.time().minute()) / C["greisLogMinuteDenominator"].toInt());
+                    if (baFileTreeInitial.size()!=0) {
+                        sLogger.Trace(QString("Creating file %1").arg(path+QDir::separator()+QString::number(fileNumber)+".jps"));
+                        fileTreefile = new QFile(path+QDir::separator()+QString::number(fileNumber)+".jps");
+                        fileTreefile->open(QIODevice::ReadWrite);
+                        sLogger.Trace(QString("Writing %1 bytes of deferred buffer").arg(baFileTreeInitial.size()));
+                        fileTreefile->write(baFileTreeInitial);
+                        baFileTreeInitial.clear();
+                    }
+                    
+                    sLogger.Debug(QString("Calculated filename: %1").arg((QString::number(fileNumber)+".jps")));
+                    sLogger.Debug(QString("Current filename: %1").arg(QFileInfo(fileTreefile->fileName()).fileName()));
+
+                    if ((QString::number(fileNumber)+".jps")!=QFileInfo(fileTreefile->fileName()).fileName()){
+                        sLogger.Trace(QString("Closing file %1").arg(path+QDir::separator()+QString::number(fileNumber)+".jps"));
+                        fileTreefile->close();
+                        delete fileTreefile;
+                        sLogger.Trace(QString("Creating file %1").arg(path+QDir::separator()+QString::number(fileNumber)+".jps"));
+                        fileTreefile = new QFile(path+QDir::separator()+QString::number(fileNumber)+".jps");
+                        fileTreefile->open(QIODevice::ReadWrite);
+                        fileTreefile->write(fileId->ToByteArray());
+                        writeCRLF(fileTreefile);
+                        fileTreefile->write(msgFmt->ToByteArray());
+                        writeCRLF(fileTreefile);
+                        fileTreefile->write(msgPMVer->ToByteArray());
+                        writeCRLF(fileTreefile);
+                    }
+                    fileTreefile->write(msg->ToByteArray());
+                    //writeCRLF(fileTreefile);
+                    } else { // Defer saving                        
+                        baFileTreeInitial.append(msg->ToByteArray());
+                        //baFileTreeInitial.append(NonStdTextMessage::CreateNewLineMessage()->ToByteArray());
+                        //baFileTreeInitial.append(NonStdTextMessage::CreateCarriageReturnMessage()->ToByteArray());
+                    }
+                }
+
                 if (msgCounter % 100 == 0)
                 {
                     sLogger.Trace(QString("Progress: %1 messages received").arg(msgCounter));
-                    if(!dataChunk->Body().empty()){
-                        lastFinishedEpoch = dataChunk->Body().back().get();
-                        sLogger.Trace(QString("Progress: currently on epoch of %1").arg(lastFinishedEpoch->DateTime.toString(Qt::ISODate)));
-                    }
                 }
                 
             }
@@ -179,6 +247,7 @@ namespace gnssrcvbroker
         	sLogger.Error(e.what());
         	return 1;
         }
+        return true;
     }
 }
     int main(int argc, char** argv)
@@ -237,6 +306,8 @@ namespace gnssrcvbroker
         		
         		C["greisLogFileName"] = sIniSettings.value("enableFile", QString()).toString();
         		if(C["greisLogFileName"].toString().isEmpty()) C["enableFile"] = false; else C["enableFile"] = true;
+
+                C["greisLogMinuteDenominator"] = sIniSettings.value("fileDenominator", 15).toInt();
 
         		C["enableDB"] = sIniSettings.value("enableDB", C["enableDB"].toBool()).toBool();
         		

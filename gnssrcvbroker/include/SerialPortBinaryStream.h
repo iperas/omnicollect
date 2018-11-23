@@ -4,9 +4,9 @@
 #include <iostream>
 #include <QtCore/QtCore>
 #include <QtSerialPort/QtSerialPort>
-#include "Greis/IBinaryStream.h"
-#include "Common/Exception.h"
-#include "Common/Logger.h"
+#include "greis/IBinaryStream.h"
+#include "common/Exception.h"
+#include "common/Logger.h"
 namespace Platform
 {
     class SerialPortBinaryStream : public QObject, public Greis::IBinaryStream

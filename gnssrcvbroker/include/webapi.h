@@ -1,11 +1,11 @@
 #include "mongoose.h"
-#include "Common/Logger.h"
-#include "Common/SmartPtr.h"
-#include "Common/Path.h"
-#include "Common/Connection.h"
-#include "Greis/DataChunk.h"
+#include "common/Logger.h"
+#include "common/SmartPtr.h"
+#include "common/Path.h"
+#include "common/Connection.h"
+#include "greis/DataChunk.h"
 #include <QtCore/QReadWriteLock>
-#include "Greis/SkyPeek.h"
+#include "extras/SkyPeek.h"
 
 using namespace Common;
 using namespace Greis;

@@ -1,9 +1,9 @@
 #pragma once
 
-#include "Common/Connection.h"
-#include "Common/SmartPtr.h"
-#include "Greis/MySqlSink.h"
-#include "Greis/DataChunk.h"
+#include "common/Connection.h"
+#include "common/SmartPtr.h"
+#include "greis/MySqlSink.h"
+#include "greis/DataChunk.h"
 
 using namespace Common;
 

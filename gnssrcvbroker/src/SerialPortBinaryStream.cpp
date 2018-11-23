@@ -170,6 +170,7 @@ namespace Platform
                 bytes.append(_primaryBuffer->left(maxlen-bytes.size()));
                 mutexSwap.unlock();
             }
+            return bytes;
         }
 
         void SerialPortBinaryStream::purgeBuffers()

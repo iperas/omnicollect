@@ -4,7 +4,7 @@ CMAKE_MINIMUM_REQUIRED(VERSION 3.0)
 
 CMAKE_POLICY(SET CMP0003 NEW)
 CMAKE_POLICY(SET CMP0054 NEW)
-CMAKE_POLICY(SET CMP0066 NEW)
+#CMAKE_POLICY(SET CMP0066 NEW)
 
 # Get all propreties that cmake supports
 execute_process(COMMAND cmake --help-property-list OUTPUT_VARIABLE CMAKE_PROPERTY_LIST)
@@ -78,57 +78,28 @@ endif()
 FIND_PACKAGE(Qt5Core)
 FIND_PACKAGE(Qt5Sql)
 
-## Boost
-
-SET(Boost_USE_STATIC_LIBS ON)
-SET(Boost_USE_MULTITHREADED ON)
-FIND_PACKAGE(Boost COMPONENTS regex system thread REQUIRED)
-INCLUDE_DIRECTORIES(${Boost_INCLUDE_DIRS})
-ADD_DEFINITIONS(-DBOOST_ALL_NO_LIB)
-
-# Common
 
 include(ExternalProject)
 set_directory_properties(PROPERTIES EP_PREFIX ${CMAKE_BINARY_DIR}/ThirdParty)
 
 ExternalProject_Add (
- libCommon
- GIT_REPOSITORY "https://github.com/iperas/Common"
- GIT_TAG "master"
- UPDATE_COMMAND ""
- INSTALL_COMMAND ""
- BUILD_IN_SOURCE 1
-)
-ExternalProject_Get_Property(libCommon source_dir)
-SET(Common_source_dir ${source_dir})
-add_library( Common STATIC IMPORTED )
-if (UNIX)
-    SET(pathCommon ${Common_source_dir}/build/lib/libCommon.a)
-endif (UNIX)
-if (WIN32)
-    SET(pathCommon ${Common_source_dir}/build/lib/Common.lib)   
-endif (WIN32)
-set_target_properties( Common PROPERTIES IMPORTED_LOCATION ${pathCommon} )
-add_dependencies( Common libCommon )
-
-ExternalProject_Add (
- libGreis
+ libgreis
  GIT_REPOSITORY "https://github.com/iperas/Greis"
  GIT_TAG "master"
  UPDATE_COMMAND ""
  INSTALL_COMMAND ""
  BUILD_IN_SOURCE 1
 )
-ExternalProject_Get_Property(libGreis source_dir)
+ExternalProject_Get_Property(libgreis source_dir)
 SET(Greis_source_dir ${source_dir})
 add_library( Greis STATIC IMPORTED )
 if (UNIX)
-    SET(pathGreis ${Greis_source_dir}/build/lib/libGreis.a)
+    SET(pathGreis ${Greis_source_dir}/build/lib/libgreis.a)
 endif (UNIX)
 if (WIN32)
-    SET(pathCommon ${Greis_source_dir}/build/lib/Greis.lib)
+    SET(pathGreis ${Greis_source_dir}/build/lib/greis.lib)
 endif (WIN32)
 set_target_properties( Greis PROPERTIES IMPORTED_LOCATION ${pathGreis} )
-add_dependencies( Greis libGreis )
+add_dependencies( Greis libgreis )
 
 add_subdirectory(gnssrcvbroker)
