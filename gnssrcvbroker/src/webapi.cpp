@@ -50,16 +50,16 @@ namespace gnssrcvbroker
 			    	QString reply;
 			    	QDateTime DateTime = skyPeek->DateTime;
 			    	reply += QString("{\"%1\":{\n").arg(DateTime.isValid()?DateTime.toString(Qt::ISODate):"\"Unknown\"");
-			    	for (int i=0;i< skyPeek->SVs.size(); i++)
+			    	for (int i=0;i< skyPeek->pSVs.size(); i++)
                         {
-	                        SkyPeek::SV SV = skyPeek->SVs[i];
+	                        SkyPeek::SV SV = skyPeek->pSVs[i];
 					    	reply += QString("\"%1\":\n{\"SSID\":%2,\"SVID\":%3,").arg(SV.USI).arg(SV.ESI.SSID).arg(SV.ESI.SVID);
-		                    reply += QString("\"PR\": {\"CA/L1\": %2, \"P/L1\": %3, ").arg(SV.Pseudorange[SkyPeek::Signals::caL1]).arg(SV.Pseudorange[SkyPeek::Signals::pL1]);
-		                    reply += QString("\"P/L2\": %1, \"CA/L2\": %2, \"P/L5\": %3},\n").arg(SV.Pseudorange[SkyPeek::Signals::pL2]).arg(SV.Pseudorange[SkyPeek::Signals::caL2]).arg(SV.Pseudorange[SkyPeek::Signals::L5]);
-		                    reply += QString("\"CP\":{\"CA/L1\": %1, \"P/L1\": %2, \"P/L2\": %3,\n").arg(SV.CarrierPhase[SkyPeek::Signals::caL1]).arg(SV.CarrierPhase[SkyPeek::Signals::pL1]).arg(SV.CarrierPhase[SkyPeek::Signals::pL2]);
-		                    reply += QString("\"CA/L2\": %1, \"P/L5\": %2},\n").arg(SV.CarrierPhase[SkyPeek::Signals::caL2]).arg(SV.CarrierPhase[SkyPeek::Signals::L5]);
+		                    reply += QString("\"PR\": {\"CA/L1\": %2, \"P/L1\": %3, ").arg(SV.Pseudorange[SkyPeek::Signals::caL1],0,'E',10).arg(SV.Pseudorange[SkyPeek::Signals::pL1],0,'E',10);
+		                    reply += QString("\"P/L2\": %1, \"CA/L2\": %2, \"P/L5\": %3},\n").arg(SV.Pseudorange[SkyPeek::Signals::pL2],0,'E',10).arg(SV.Pseudorange[SkyPeek::Signals::caL2],0,'E',10).arg(SV.Pseudorange[SkyPeek::Signals::L5],0,'E',10);
+		                    reply += QString("\"CP\":{\"CA/L1\": %1, \"P/L1\": %2, \"P/L2\": %3,\n").arg(SV.CarrierPhase[SkyPeek::Signals::caL1],0,'E',10).arg(SV.CarrierPhase[SkyPeek::Signals::pL1],0,'E',10).arg(SV.CarrierPhase[SkyPeek::Signals::pL2],0,'E',10);
+		                    reply += QString("\"CA/L2\": %1, \"P/L5\": %2},\n").arg(SV.CarrierPhase[SkyPeek::Signals::caL2],0,'E',10).arg(SV.CarrierPhase[SkyPeek::Signals::L5],0,'E',10);
 		                    reply += QString("\"AZ\": %2, \"EL\": %1}").arg(SV.Elevation).arg(SV.Azimuth);
-		                    if(i<(skyPeek->SVs.size()-1)) reply += ",\n";
+		                    if(i<(skyPeek->pSVs.size()-1)) reply += ",\n";
 				        }
 				    skyPeekLock->unlock();
 				    reply += QString("}\n}\n");

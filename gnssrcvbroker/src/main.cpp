@@ -147,9 +147,11 @@ namespace gnssrcvbroker
             Epoch * lastFinishedEpoch;
             QFile * fileTreefile;
             QByteArray baFileTreeInitial;
-            Greis::FileIdStdMessage::UniquePtr_t fileId; 
-            Greis::MsgFmtStdMessage::UniquePtr_t msgFmt; 
-            Greis::ParamsStdMessage::UniquePtr_t msgPMVer;
+            Greis::FileIdStdMessage::UniquePtr_t fileId = make_unique<Greis::FileIdStdMessage>(QString("JP055RLOGF JPS GNSSRCVBROKER Receiver Log File").leftJustified(FileIdStdMessageFixedSize,' ').toLatin1().constData(),FileIdStdMessageFixedSize); 
+            Greis::MsgFmtStdMessage::UniquePtr_t msgFmt = make_unique<Greis::MsgFmtStdMessage>("MF009JP010109F", MsgFmtStdMessageFixedSize);
+            QByteArray bMsgPMVer = QString("PM024rcv/ver/main=\"3.7.2 Oct,11,2017\",@").toLatin1().constData();
+            bMsgPMVer.append(QString("%1").arg(Greis::ChecksumComputer::ComputeCs8(bMsgPMVer,bMsgPMVer.size()), 2, 16, QChar('0')).toUpper().toLatin1().constData());
+            Greis::ParamsStdMessage::UniquePtr_t msgPMVer = make_unique<Greis::ParamsStdMessage>(bMsgPMVer,bMsgPMVer.size());
             while ((msg = messageStream->Next()).get())
             {
                 msgCounter++;
