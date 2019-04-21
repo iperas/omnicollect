@@ -103,3 +103,4 @@ set_target_properties( Greis PROPERTIES IMPORTED_LOCATION ${pathGreis} )
 add_dependencies( Greis libgreis )
 
 add_subdirectory(gnssrcvbroker)
+add_subdirectory(btcaster)

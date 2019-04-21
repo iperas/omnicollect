@@ -377,6 +377,7 @@ namespace gnssrcvbroker
         		sLogger.Debug("enableDB="+QString::number(C["enableDB"].toBool()));
         		sLogger.Debug("enableWebAPI="+QString::number(C["enableWebAPI"].toBool()));
                 sLogger.Debug("enableRB="+QString::number(C["enableRB"].toBool()));
+                sLogger.Debug("fileDenominator="+QString::number(C["greisLogMinuteDenominator"].toInt()));
 
                 // WebAPI
                 if(C["enableWebAPI"].toBool())
