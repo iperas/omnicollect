@@ -41,7 +41,7 @@ namespace Platform
          * \throws [[[exc]]] if cannot open the
          * serial device
          */
-        SerialPortBinaryStream::SerialPortBinaryStream(QString portName, unsigned int baudRate, unsigned int flowControl, unsigned int minBufferSize, unsigned int maxBufferSize)
+        SerialPortBinaryStream::SerialPortBinaryStream(QString portName, unsigned int baudRate, unsigned int flowControl)
         {
             //Set parameters
             _serial = new QSerialPort();
@@ -58,8 +58,8 @@ namespace Platform
             _bufferB = new QByteArray();
             _primaryBuffer = _bufferA;
             _secondaryBuffer = _bufferB;
-            _maxBufferSize = maxBufferSize;
-            _minBufferSize = minBufferSize;
+            _maxBufferSize = 4096;
+            _minBufferSize = 1024;
             connect(_serial, &QSerialPort::readyRead, this, [=](){
                 sLogger.Debug("[SerialPort] Bytes available");
                 mutexSwap.lock();

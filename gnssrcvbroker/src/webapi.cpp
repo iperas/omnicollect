@@ -27,6 +27,10 @@ namespace gnssrcvbroker
 				mg_mgr_init(&mgr, NULL);
 
 				nc = mg_bind(&mgr, s_http_port, ev_handler);
+				if (nc == NULL) {
+				  sLogger.Error(QString("[webapi] Failed to bind to port %1").arg(s_http_port));	
+					return
+				}
 				sLogger.Debug(QString("[webapi] Binding to port %1").arg(s_http_port));
 				mg_set_protocol_http_websocket(nc);
 				
@@ -87,6 +91,22 @@ namespace gnssrcvbroker
 								if(i<(skyPeek->SVs.size()-1)) reply += ",\n";
 							}
 				        }
+				    reply += QString("}\n}\n");
+				    skyPeekLock->unlock();
+                    mg_printf(c,
+			              "HTTP/1.1 200 OK\r\n"
+			              "Content-Type: application/json\r\n"
+			              "Content-Length: %d\r\n"
+			              "\r\n"
+			              "%s",
+			              reply.length(), reply.toLatin1().data());		    	
+			    } else if (uri=="/NAV") {
+				    skyPeekLock->lockForRead();
+			    	QString reply;
+			    	QDateTime DateTime = skyPeek->DateTime;
+			    	reply += QString("{\"%1\":{\n").arg(DateTime.isValid()?DateTime.toString(Qt::ISODate):"\"Unknown\"");
+			    	reply += QString("\"X\": %3, \"Y\": %4, \"Z\": %2, \"PError\": %1, ").arg(skyPeek->pv.perror).arg(skyPeek->pv.z).arg(skyPeek->pv.x).arg(skyPeek->pv.y);
+						reply += QString("\"Vx\": %3, \"Vy\": %4, \"Vz\": %2, \"VError\": %1").arg(skyPeek->pv.verror).arg(skyPeek->pv.vz).arg(skyPeek->pv.vx).arg(skyPeek->pv.vy);
 				    reply += QString("}\n}\n");
 				    skyPeekLock->unlock();
                     mg_printf(c,

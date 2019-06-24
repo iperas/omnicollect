@@ -25,7 +25,7 @@ source_group ("Generated Files" FILES ${MOC_SOURCES})
 PROJECT(${PROJECT} CXX)
 
 find_path(LIBTORRENT_INCLUDE_DIR libtorrent /usr/include /usr/local/include)
-find_library(LIBTORRENT_LIBRARY torrent-rasterbar /usr/lib /usr/local/lib)
+find_library(LIBTORRENT_LIBRARY torrent-rasterbar /usr/lib /usr/lib64 /usr/local/lib /usr/local/lib64)
 find_package(Boost REQUIRED COMPONENTS system)
 find_package(Threads REQUIRED)
 

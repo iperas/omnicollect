@@ -215,7 +215,7 @@ namespace btcaster
 				sLogger.Debug(QString("Adding file %1: torrent created").arg(fileInfo.fileName()));	
 				libtorrent::torrent_info torrent_info(&torrent[0],torrent.size());
 				lt::add_torrent_params p;
-				p.flags &= lt::add_torrent_params::flag_duplicate_is_error;
+				p.flags &= lt::torrent_flags::duplicate_is_error;
 				p.save_path = (stationPath+QDir::separator()+"..").toStdString();
 				p.ti = std::make_shared<lt::torrent_info>(torrent_info);
 				ltsession.add_torrent(p);

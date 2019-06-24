@@ -24,7 +24,7 @@ namespace Platform
         void _swapBuffers();
     public:
         SMART_PTR_T(SerialPortBinaryStream);
-        SerialPortBinaryStream(QString portName, unsigned int baudRate, unsigned int flowControl, unsigned int minBufferSize, unsigned int maxBufferSize);
+        SerialPortBinaryStream(QString portName, unsigned int baudRate, unsigned int flowControl);
         void asyncRead();
         void write(QByteArray data);
         int writeBytes(QByteArray data);

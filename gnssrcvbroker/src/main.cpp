@@ -61,14 +61,12 @@ namespace gnssrcvbroker
             QString serialPortName = sIniSettings.value("Receiver/serialPortName", QString()).toString();
             unsigned int serialPortBaudRate = (unsigned int)sIniSettings.value("Receiver/serialPortBaudRate", 115200).toInt();
             unsigned int serialPortFlowControl = (unsigned int)sIniSettings.value("Receiver/serialPortFlowControl", 0).toInt();
-            unsigned int minBufferSize = (unsigned int)sIniSettings.value("Receiver/minBufferSize", 1000).toInt();
-            unsigned int maxBufferSize = (unsigned int)sIniSettings.value("Receiver/maxBufferSize", 23000).toInt();
+
 
             sLogger.Debug(QString("serialportName=%1").arg(serialPortName));
             sLogger.Debug(QString("serialPortBaudRate=%1").arg(serialPortBaudRate));
             sLogger.Debug(QString("serialPortFlowControl=%1").arg(serialPortFlowControl));
-            sLogger.Debug(QString("minBufferSize=%1").arg(minBufferSize));
-            sLogger.Debug(QString("maxBufferSize=%1").arg(maxBufferSize));
+
 
             Platform::SerialPortBinaryStream::SharedPtr_t deviceBinaryStream;
 
@@ -77,8 +75,7 @@ namespace gnssrcvbroker
             sLogger.Trace("Progress: Opening port");
 
             deviceBinaryStream = std::make_shared<Platform::SerialPortBinaryStream>(
-                serialPortName, serialPortBaudRate, serialPortFlowControl, 
-                minBufferSize, maxBufferSize);     
+                serialPortName, serialPortBaudRate, serialPortFlowControl);     
 
             sLogger.Trace("State: Stopping current monitoring (if any)...");
             deviceBinaryStream->write("\n\rdm\n\r");
