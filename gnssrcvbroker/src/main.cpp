@@ -209,8 +209,8 @@ namespace gnssrcvbroker
                     sLogger.Debug(QString("Calculated filename: %1").arg((QString::number(fileNumber)+".jps")));
                     sLogger.Debug(QString("Current filename: %1").arg(QFileInfo(fileTreefile->fileName()).fileName()));
 
-                    if ((QString::number(fileNumber)+".jps")!=QFileInfo(fileTreefile->fileName()).fileName()){
-                        sLogger.Trace(QString("Closing file %1").arg(path+QDir::separator()+QString::number(fileNumber)+".jps"));
+                    if (QFileInfo(path+QDir::separator()+QString::number(fileNumber)+".jps")!=QFileInfo(fileTreefile->fileName())){
+                        sLogger.Trace(QString("Closing file %1").arg(QFileInfo(fileTreefile->fileName()).filePath()));
                         fileTreefile->close();
                         delete fileTreefile;
                         sLogger.Trace(QString("Creating file %1").arg(path+QDir::separator()+QString::number(fileNumber)+".jps"));

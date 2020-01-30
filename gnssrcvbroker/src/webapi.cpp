@@ -29,7 +29,7 @@ namespace gnssrcvbroker
 				nc = mg_bind(&mgr, s_http_port, ev_handler);
 				if (nc == NULL) {
 				  sLogger.Error(QString("[webapi] Failed to bind to port %1").arg(s_http_port));	
-					return
+					return;
 				}
 				sLogger.Debug(QString("[webapi] Binding to port %1").arg(s_http_port));
 				mg_set_protocol_http_websocket(nc);
