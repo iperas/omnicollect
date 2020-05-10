@@ -1,0 +1,17 @@
+[Unit]
+Description=Omnicollect GNSS Receiver data broker
+
+[Service]
+ExecStart=/opt/omnicollect/gnssrcvbroker --webapi
+Type=simple
+Nice=-19
+WorkingDirectory=/opt/omnicollect
+Restart=always
+StartLimitBurst=0
+StartLimitInterval=0
+RestartSec=0
+
+[Install]
+WantedBy=multi-user.target
+
+

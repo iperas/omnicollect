@@ -10,10 +10,15 @@
 
 
 using namespace Common;
-
 namespace btcaster
 {
-		    void Webapi::run()
+			QReadWriteLock * Webapi::lock_torrent_list = new QReadWriteLock();
+			QStringList Webapi::hash_list;
+			QStringList Webapi::name_list;
+			QStringList Webapi::description_list;
+			QString Webapi::channel_name; //TODO: QStringList for multistation support
+			QDateTime Webapi::last_updated;
+		  void Webapi::run()
 		    {
 		    	sLogger.Debug("[webapi] Initializing web API");
 
@@ -55,11 +60,22 @@ namespace btcaster
 			              "%s",
 			              reply.length(), reply.toLatin1().data());
 			    } else if (uri=="/rss") {
-
 			    	QString reply;
 			    	QDateTime DateTime = QDateTime::currentDateTimeUtc();
-			    	reply += QString("{\"%1\":{\n").arg(DateTime.isValid()?DateTime.toString(Qt::ISODate):"\"Unknown\"");
-				    reply += QString("}\n}\n");
+
+						reply += QString("<?xml version=\"1.0\" encoding=\"windows-1251\"?>\n<rss version=\"2.0\">\n<channel>\n<title>btcastd</title>\n");
+						reply += QString("<description>station %1</description>\n");
+						reply += QString("<pubDate>%1</pubDate>\n").arg(last_updated.toString(Qt::RFC2822Date));
+						reply += QString("<lastBuildDate>%1</lastBuildDate>\n").arg(last_updated.toString(Qt::RFC2822Date));
+						lock_torrent_list->lockForRead();
+						for (int i = 0; i < hash_list.size(); ++i){
+							reply += QString("<item><title>%1</title>").arg(name_list.at(i));
+							reply += QString("<enclosure url=\"%2\" type=\"application/x-bittorrent\"/>").arg(hash_list.at(i));
+							reply += QString("<description>%3</description></item>\n").arg(description_list.at(i));
+						}
+						reply += QString("</channel></rss>");
+						lock_torrent_list->unlock();
+				    reply += QString("\n");
                     mg_printf(c,
 			              "HTTP/1.1 200 OK\r\n"
 			              "Content-Type: application/json\r\n"

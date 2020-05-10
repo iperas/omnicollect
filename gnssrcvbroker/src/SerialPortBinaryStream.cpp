@@ -1,33 +1,6 @@
 #include "SerialPortBinaryStream.h"
 namespace Platform
-{
-        void SerialPortBinaryStream::_swapBuffers()
-        {
-            sLogger.Debug("[SerialPort] _swapBuffers called");
-            while(true){
-                QCoreApplication::processEvents();
-                mutexSwap.lock();
-                if(_primaryBuffer->size()<_minBufferSize){
-                    mutexSwap.unlock();    
-                    continue;
-                } else {
-                    break;
-                }
-            }
-            sLogger.Debug("[SerialPort] Swapping buffers");
-            if(_primaryBuffer == _bufferA){
-                  sLogger.Debug(QString("[SerialPort] Primary was A (%1 bytes long, B is %2 bytes long").arg(_bufferA->size()).arg(_bufferB->size()));;
-                  _primaryBuffer = _bufferB;
-                  _secondaryBuffer = _bufferA;
-            } else {
-                  sLogger.Debug(QString("[SerialPort] Primary was B (%1 bytes long, A is %2 bytes long").arg(_bufferB->size()).arg(_bufferA->size()));;
-                  _primaryBuffer = _bufferA;
-                  _secondaryBuffer = _bufferB;
-            }
-            mutexSwap.unlock();            
-        }
-        
-        
+{      
         /**
          * Constructor.
          * \param string portName - port name, e.g. /dev/ttyUSB1 or COM3
@@ -45,6 +18,7 @@ namespace Platform
         {
             //Set parameters
             _serial = new QSerialPort();
+            _lock = new QMutex(QMutex::Recursive);
             _serial->setPortName(portName);
             _serial->setBaudRate(baudRate);
             bool ok = _serial->open(QIODevice::ReadWrite);
@@ -54,18 +28,12 @@ namespace Platform
             //_serial->setParity(QSerialPort::NoParity);
             //_serial->setStopBits(QSerialPort::OneStop);
             _serial->setFlowControl((QSerialPort::FlowControl)flowControl);
-            _bufferA = new QByteArray();
-            _bufferB = new QByteArray();
-            _primaryBuffer = _bufferA;
-            _secondaryBuffer = _bufferB;
-            _maxBufferSize = 4096;
-            _minBufferSize = 1024;
+            _buffer = new QByteArray();
             connect(_serial, &QSerialPort::readyRead, this, [=](){
-                sLogger.Debug("[SerialPort] Bytes available");
-                mutexSwap.lock();
                 sLogger.Debug(QString("[SerialPort] %1 bytes available").arg(_serial->bytesAvailable()));
-                _primaryBuffer->append(_serial->readAll());
-                mutexSwap.unlock();
+                _lock->lock();
+                _buffer->append(_serial->readAll());
+                _lock->unlock();
             });
         }
 
@@ -81,60 +49,20 @@ namespace Platform
 
         int SerialPortBinaryStream::writeBytes(QByteArray data)
         {
-            mutexSwap.lock();
-            int bytes = _serial->write(data);
-            mutexSwap.unlock();            
+            int bytes = _serial->write(data);    
             return bytes;
         }
 
         QByteArray SerialPortBinaryStream::read(qint64 maxlen)
         {
             QByteArray bytes;
-            unsigned int _primaryBufferSize;
-            unsigned int _secondaryBufferSize;
-            sLogger.Debug(QString("[SerialPort] Serving %1 bytes from buffer").arg(maxlen));
-            mutexSwap.lock();
-            _primaryBufferSize = _primaryBuffer->size();
-            sLogger.Debug(QString("[SerialPort] Primary buffer size is %1").arg(_primaryBufferSize));
-
-            if(_primaryBuffer == _bufferA){
-                _secondaryBuffer = _bufferB;
-                sLogger.Debug(QString("[SerialPort] Primary is A"));
+            while(_buffer->size()<maxlen){
+                _serial->waitForReadyRead();
             }
-            if(_primaryBuffer == _bufferB){
-                _secondaryBuffer = _bufferA;
-                sLogger.Debug(QString("[SerialPort] Primary is B"));
-            }
-
-            mutexSwap.unlock();
-            _secondaryBufferSize = _secondaryBuffer->size();
-            sLogger.Debug(QString("[SerialPort] Secondary buffer size is %1").arg(_secondaryBuffer->size()));
-
-            if(_secondaryBufferSize >= maxlen){
-                sLogger.Debug(QString("[SerialPort] Secondary has enough bytes"));
-                // There is enough bytes in current buffer
-                bytes = _secondaryBuffer->left(maxlen);
-                _secondaryBuffer->remove(0,maxlen);
-            } else {
-                sLogger.Debug(QString("[SerialPort] Secondary lacks enough bytes"));
-                // We lack bytes, get all wait for buffer swap
-                bytes = QByteArray(*_secondaryBuffer);
-                _secondaryBuffer->clear();
-                sLogger.Debug(QString("[SerialPort] Consumed %1 bytes from Secondary").arg(bytes.size()));
-                while(bytes.size()<maxlen){
-                        _swapBuffers();
-                        int leftBytes=maxlen-bytes.size();
-                        sLogger.Debug(QString("[SerialPort] Consumed %1 bytes from Secondary").arg(leftBytes));
-                        bytes.append(_secondaryBuffer->left(leftBytes));
-                        _secondaryBuffer->remove(0,leftBytes);
-                    }
-            }
-            
-
-            if(_primaryBufferSize >= _maxBufferSize){
-              _swapBuffers();
-            }
-
+            _lock->lock();
+            bytes = _buffer->left(maxlen);
+            _buffer->remove(0,maxlen);
+            _lock->unlock();
             return bytes;
         }
 
@@ -154,22 +82,13 @@ namespace Platform
 
         QByteArray SerialPortBinaryStream::peek(qint64 maxlen)
         {
-           
             QByteArray bytes;
-            unsigned int _secondaryBufferSize = _secondaryBuffer->size();
-            bytes = _secondaryBuffer->left(maxlen);
-            if(_secondaryBufferSize >= maxlen){
-                return bytes;     
-            } else {
-                mutexSwap.lock();
-                while((_primaryBuffer->size()) < (maxlen-bytes.size())){
-                   mutexSwap.unlock();
-                   QCoreApplication::processEvents();
-                   mutexSwap.lock();
-                }  
-                bytes.append(_primaryBuffer->left(maxlen-bytes.size()));
-                mutexSwap.unlock();
+            while(_buffer->size()<maxlen){
+                _serial->waitForReadyRead();
             }
+            _lock->lock();
+            bytes = _buffer->left(maxlen);
+            _lock->unlock();
             return bytes;
         }
 

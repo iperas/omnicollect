@@ -14,14 +14,8 @@ namespace Platform
         Q_OBJECT
     private:
         QSerialPort * _serial;
-        QByteArray * _bufferA;
-        QByteArray * _bufferB;
-        QByteArray * _primaryBuffer; // Write buffer
-        QByteArray * _secondaryBuffer; // Read buffer
-        unsigned int _maxBufferSize; // Rotate when primary is this long
-        unsigned int _minBufferSize; // Rotate when primary is this long
-        QMutex mutexSwap;
-        void _swapBuffers();
+        QByteArray * _buffer;
+        QMutex * _lock;
     public:
         SMART_PTR_T(SerialPortBinaryStream);
         SerialPortBinaryStream(QString portName, unsigned int baudRate, unsigned int flowControl);

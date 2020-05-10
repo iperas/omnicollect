@@ -21,7 +21,7 @@ using namespace Common;
 
 namespace btcaster
 {
-	lt::session ltsession;
+	lt::session * ltsession;
 	class fileHandler : public QObject
 	{
 		Q_OBJECT
@@ -91,6 +91,7 @@ namespace btcaster
 	bool timeDriftTested = false;
 	int compensationMinutes = 1; // Minutes to add to cooldown timer caused by RTC-to-instrument clock skew
 	public:
+	  QString Tracker;
 	  fileHandler(QObject *parent, QHash<QString,QVariant> &config)
 		  : QObject(parent) {
 			this->C = config;
@@ -191,7 +192,7 @@ namespace btcaster
 				sLogger.Debug(QString("Checking file %1: file is zero, skipping").arg(fileInfo.fileName()));
 			} else {
 			if(fileNumber != minutes){
-				sLogger.Debug(QString("Checking file %1: file is no live, proceeding").arg(fileInfo.fileName()));	
+				sLogger.Debug(QString("Checking file %1: file is not live, proceeding").arg(fileInfo.fileName()));	
 				this->Files.insert(str);
 				libtorrent::file_storage fs;
 				QString stationName = path.at(path.size()-4);
@@ -214,15 +215,23 @@ namespace btcaster
 				libtorrent::bencode(std::back_inserter(torrent), t.generate());
 				sLogger.Debug(QString("Adding file %1: torrent created").arg(fileInfo.fileName()));	
 				libtorrent::torrent_info torrent_info(&torrent[0],torrent.size());
+				torrent_info.add_tracker(Tracker.toStdString());
 				lt::add_torrent_params p;
 				p.flags &= lt::torrent_flags::duplicate_is_error;
 				p.save_path = (stationPath+QDir::separator()+"..").toStdString();
 				p.ti = std::make_shared<lt::torrent_info>(torrent_info);
-				ltsession.add_torrent(p);
+				ltsession->add_torrent(p);
 				printTorrentInfo(torrent_info);
 				sLogger.Debug(QString("Adding file %1: constructing uri").arg(fileInfo.fileName()));	
 				QString uri = QString::fromStdString(libtorrent::make_magnet_uri(torrent_info));
+				uri=uri.replace("&","&amp;");
 				this->Torrents.insert(uri);
+				Webapi::lock_torrent_list->lockForWrite();
+				Webapi::name_list.append(QString(fileInfo.fileName()));
+				Webapi::description_list.append(QString(fileInfo.fileName()));
+				Webapi::hash_list.append(uri);
+				Webapi::lock_torrent_list->unlock();
+				
 			} else {
 				sLogger.Debug(QString("Checking file %1: file is live, skipping").arg(fileInfo.fileName()));	
 			}
@@ -236,14 +245,13 @@ namespace btcaster
 
 }
 #include "main.moc"
-
     int main(int argc, char** argv)
 	{
 		try {
         		QCoreApplication a(argc, argv);
         		QTextCodec* codec = QTextCodec::codecForName("UTF-8");
         		QTextCodec::setCodecForLocale(codec);
-
+				btcaster::Webapi * webapi;
         		int LogLevel = 3;
         		sLogger.Initialize(LogLevel);
 
@@ -279,6 +287,9 @@ namespace btcaster
 
         		if(!C["extConfig"].toBool())sIniSettings.Initialize(Path::Combine(Path::ApplicationDirPath(), "config.ini"));
         		C["enableParse"] = sIniSettings.value("enableParse", C["enableParse"].toBool()).toBool();
+
+				C["trackerURL"] = sIniSettings.value("trackerURL", QString()).toString();
+				C["stationName"] = sIniSettings.value("stationName", QString()).toString();
         		
         		C["greisLogFileName"] = sIniSettings.value("enableFile", QString()).toString();
         		if(C["greisLogFileName"].toString().isEmpty()) C["enableFile"] = false; else C["enableFile"] = true;
@@ -331,15 +342,22 @@ namespace btcaster
                 // WebAPI
                 if(C["enableWebAPI"].toBool())
                 {
-                    btcaster::Webapi * webapi = new btcaster::Webapi();
+                    webapi = new btcaster::Webapi();
+					btcaster::Webapi::channel_name = C["stationName"].toString(); //TODO: QStringList for multistation support
                     webapi->start();
                 }
 
 				//Scan path and add days to monitoring
-
+				libtorrent::session_params p;
+				p.dht_settings.restrict_routing_ips = false;
+				p.dht_settings.restrict_search_ips = false;
+				btcaster::ltsession = new libtorrent::session(p);
 				sLogger.Debug(QString("Path: %1").arg(C["greisLogFileName"].toString()));
 			 	btcaster::fileHandler* fH = new btcaster::fileHandler(0,C);
+				fH->Tracker = C["trackerURL"].toString();
 				fH->handleStation(C["greisLogFileName"].toString());
+
+				
     			
 				
 
