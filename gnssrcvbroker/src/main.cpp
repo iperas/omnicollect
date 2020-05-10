@@ -198,8 +198,8 @@ namespace gnssrcvbroker
                     }
                     int fileNumber = C["greisLogMinuteDenominator"].toInt() * floor((skyPeek->DateTime.time().hour()*60+skyPeek->DateTime.time().minute()) / C["greisLogMinuteDenominator"].toInt());
                     if (baFileTreeInitial.size()!=0) {
-                        sLogger.Trace(QString("Creating file %1").arg(path+QDir::separator()+QString::number(fileNumber)+".jps"));
-                        fileTreefile = new QFile(path+QDir::separator()+QString::number(fileNumber)+".jps");
+                        sLogger.Trace(QString("Creating file %1").arg(path+QDir::separator()+QString::number(fileNumber).rightJustified(4, '0')+".jps"));
+                        fileTreefile = new QFile(path+QDir::separator()+QString::number(fileNumber).rightJustified(4, '0')+".jps");
                         fileTreefile->open(QIODevice::ReadWrite);
                         sLogger.Trace(QString("Writing %1 bytes of deferred buffer").arg(baFileTreeInitial.size()));
                         fileTreefile->write(baFileTreeInitial);
