@@ -213,8 +213,8 @@ namespace gnssrcvbroker
                         sLogger.Trace(QString("Closing file %1").arg(QFileInfo(fileTreefile->fileName()).filePath()));
                         fileTreefile->close();
                         delete fileTreefile;
-                        sLogger.Trace(QString("Creating file %1").arg(path+QDir::separator()+QString::number(fileNumber)+".jps"));
-                        fileTreefile = new QFile(path+QDir::separator()+QString::number(fileNumber)+".jps");
+                        sLogger.Trace(QString("Creating file %1").arg(path+QDir::separator()+QString::number(fileNumber).rightJustified(4, '0')+".jps"));
+                        fileTreefile = new QFile(path+QDir::separator()+QString::number(fileNumber).rightJustified(4, '0')+".jps");
                         fileTreefile->open(QIODevice::ReadWrite);
                         fileTreefile->write(fileId->ToByteArray());
                         writeCRLF(fileTreefile);
